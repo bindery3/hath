@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+import subprocess
 import time
 
 import requests
@@ -12,10 +13,12 @@ class HatH(object):
     def __init__(self):
         self.conf_file = 'config.yaml'
         self.csv_path = 'data'
+        self.max_lines = 0
         self.url = 'https://e-hentai.org/hentaiathome.php'
         self.headers = {
             'Cookie': '',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
+                          'Chrome/91.0.4472.124 Safari/537.36 '
         }
         self.id_list = []
         self.client_list = []
@@ -27,6 +30,8 @@ class HatH(object):
             self.headers['Cookie'] = conf['cookie']
             if 'client' in conf.keys():
                 self.id_list = conf['client']
+            if 'lines' in conf.keys():
+                self.max_lines = conf['lines']
 
     def get_static_ranges(self, cid):
         url = self.url + '?cid=' + cid
@@ -44,7 +49,8 @@ class HatH(object):
             values = c.xpath('.//*/text()')
             if self.id_list and int(values[1]) not in self.id_list:
                 continue
-            status = [1 if values[2] == 'Online' else 0,  # Status
+            status = [int(time.time()),  # time
+                      1 if values[2] == 'Online' else 0,  # Status
                       values[10][1:],  # Trust
                       values[11],  # Quality
                       re.sub(r'[^\d.]', '', values[12]),  # Hitrate
@@ -58,10 +64,16 @@ class HatH(object):
             self.client_list.append(client)
 
     def write(self):
-        if not os.path.exists(self.csv_path):
+        if not os.path.isdir(self.csv_path):
             os.mkdir(self.csv_path)
         for c in self.client_list:
-            csv_file = os.path.join(self.csv_path, c['id'] + '_' + c['name'] + '.csv')
+            file_name = '%s_%s.csv' % (c['id'], c['name'])
+            csv_file = os.path.join(self.csv_path, file_name)
+            if self.max_lines:
+                if os.path.isfile(csv_file):
+                    lines = int(subprocess.getoutput('wc -l %s' % csv_file).split()[0])
+                    if lines + 1 > self.max_lines:
+                        subprocess.run("sed -i '1,%dd' %s" % (lines - self.max_lines + 1, csv_file), shell=True)
             with open(csv_file, 'a', encoding="utf-8", newline='') as f:
                 writer = csv.writer(f)
                 data = c['status']

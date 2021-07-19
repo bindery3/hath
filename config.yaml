@@ -1,4 +1,5 @@
-cookie:
-client:
+cookie: ipb_member_id=xxx
+client: # Client ID
   - 123
   - 456
+lines: 1000 # Maximum length of CSV file
